@@ -1,13 +1,471 @@
+https://processors.wiki.ti.com/index.php/WL18xx_TX_Testing
+
+WL18xx TX Testing
+-----------------
+
+Contents
+1	Introduction
+2	Tune Channel
+3	Set TX Power
+4	TX Continuous Test
+5	TX Tone Test
+	5.1	Older Versions
+6	ANT1 & ANT2 Assembly Validation for Production
+
+1. Introduction
+---------------
+
+This section will review the calibrator commands that may be useful when performing transmission (TX) testing on the WL18xx.
+
+Prerequisites:
+
+1. Your kernel and modules must be compiled with CONFIG_NL80211_TESTMODE=y. You can check this at run-time as follows:
+
+	root@am335x-evm:/usr/share/wl18xx#  zcat /proc/config.gz | grep NL80211_TESTMODE
+	CONFIG_NL80211_TESTMODE=y
+
+**** Note: If you don't have that configured, be sure to copy over your kernel and reinstall all modules.
+
+2. The wlan0 interface must be shut down. Run ifconfig wlan0 down to disable it and then run ifconfig one more time to verify it has properly shut down.
+
+3. Before using any of the WLAN commands listed below, you should enter the WL18xx device into PLT mode using the following command:
+
+	cd /usr/share/wl18xx/
+	calibrator wlan0 plt power_mode on
+
+============================================================================================================================
+2. Tune Channel
+---------------
+
+Purpose
+	The purpose of the tune_channel command is to configure the WL18xx chip to operate in a specific Wifi band and channel.
+
+Method
+	The tune_channel command can be called using the following format:
+
+Syntax
+ calibrator wlan0 wl18xx_plt tune_channel  <channel> <band> <bandwidth>
+
+Where:
+
+<channel> is the channel within the wifi band. See the picture below for details.
+<band> is the wifi band. Ex: 0 means we are in g band equal to 1 means we are in a band
+<bandwidth> is the bandwidth allocation. Use one of the following values
+
+--------------------------------------------------------------------------
+Channel				Band		Bandwidth
+--------------------------------------------------------------------------			
+1-14				0 (2.4GHz)	0/1 (20MHz)
+						2 (40MHz Upper Primary)
+						3 (40MHz Lower Primary)
+--------------------------------------------------------------------------
+8(J8), 12(J12), 16(J16),			0/1 (20MHz)
+36, 40, 44, 48, 34(J34),			2 (40MHz Upper Primary)
+38(J38), 42(J42), 46(J46),    	1 (5GHz)	3 (40MHz Lower Primary)
+52, 56, 60, 64, 100, 104
+108, 112, 116, 120, 124,
+128, 132, 136, 140, 149,
+153, 157, 161, 165
+---------------------------------------------------------------------------
+16(J1), 12(J2), 8(J3), 4(J4)	2 (4.9GHz)	0/1 (20MHz)
+						2 (40MHz Upper Primary)
+						3 (40MHz Lower Primary)
+---------------------------------------------------------------------------
+
+*** Note: Channel tune must be executed before any other calibrator activities. There is no default channel tuned.
+
+Examples
+
+The following tune_channel example configures the chip to operate in the 2.4 GHz band at channel 1 without high-throughput.
+
+ calibrator wlan0 wl18xx_plt tune_channel 1 0 0
+=================================================================================================================
+
+Set TX Power
+-------------
+
+Purpose
+	The set_tx_power command can be used to set the transmission power of the Wl18xx device.
+
+Method
+	To set TX power, first boot into PLT mode using the power_mode command, then select the channel to use with 
+	the tune_channel command. Finally, you can set the power using the set_tx_power command in the following manner:
+
+Syntax
+	calibrator wlan0 wl18xx_plt set_tx_power <output_power> <level> <band> <primary_channel> <2nd_channel> <antenna>
+	<non_serving_channel> <channel_limitation> <internal> <gain_calculation> <analog_gain_control_id> <post_dpd_gain>
+Where:
+
+---------------------------------------------------------------------------------------------------------------------
+Parameter 		output_power
+Options		
+			0: (0-20000)
+			1: (0-20000)
+			2: (-15000 - (-4000))	According to parameter 10 (gain_calculation):
+Description
+			0 (Normal): Desired output power supplied in dBmX1000 at 125 resolution (1/8 dB) 
+					i.e. 16.125[dBm] = 16125
+			1 (Debug): Desired output power supplied in dBmX1000 at 125 resolution (1/8 dB) 
+					i.e. 16.125[dBm] = 16125
+			2 (Override): Desired BO from PSAT supplied in dBmX1000 at 125 resolution (1/8 dB) 
+					i.e. -10.375[dBm] = -10375
+Remarks
+			Override mode is supported from FW version 8.9.0.0.20 and calibrator version 0.80
+---------------------------------------------------------------------------------------------------------------------
+Parameter 		level	
+Options 		0-3	
+Description 		System support for different pre-configurable power levels in operational mode.
+Remarks 		For PLT usage power level should be configured to 0
+---------------------------------------------------------------------------------------------------------------------
+Parameter 		band	
+Options			0: 2.4GHz
+			1: 5GHz
+			2: 4.9GHz (JP)	
+Description 		Operation Band
+Remarks
+--------------------------------------------------------------------------------------------------------------------
+Parameter 		channel_number	
+Options			Channel according to used band	
+Description		Channel according to used band	
+Remarks			Same as configured in channel of tune channel command
+---------------------------------------------------------------------------------------------------------------------
+Parameter		primary_channel_location	
+Options			-1: 40MHz Lower Primary
+			0: 20MHZ
+			1: 40MHz Upper Primary	
+Description		20/40MHz usage	
+Remarks			Same as configured in bandwidth of tune channel command:
+				-1 = 3 (40MHz Lower Primary)
+				0 = 0/1 (20MHz)
+				1 = 2 (40MHz Upper Primary)
+---------------------------------------------------------------------------------------------------------------------
+Parameter		antenna	
+Options			0-3	
+
+Description		Used for TX antenna select:
+			0: Auto Mode: The FW will automatically selects which TX paths to calculate the power for (based on how many 
+				antennas are assembled, band, BW and etc.)
+			1: TX1: Force TX power calculation for TX1 path
+			2: TX2: Force TX power calculation for TX2 path
+			3: Both TX1&TX2: Force TX power calculation for both TX paths
+Remarks			
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		non_serving_channel	
+Options			0-1	
+Description		0: Serving
+			1: Non Serving
+			The power settings will be set only for non serving rate groups (basic rates only)
+Remarks			
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		channel_limitation	
+Options			0-1	
+Description		0: Disabled
+			1: Enabled
+			Disable/Enable whether to use the channel power limits from the ini file
+Remarks						
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		internal	
+Options			Not Supported	
+Description		Internal Usage	
+Remarks			Default 0
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		gain_calculation_mode	
+Options			0-2	
+Description		0: Normal - The BO (digital gain) and the analog gain (VGA/iPA/mixer) are being calculated 
+				and set using FW defines
+			1: Debug - No BO limits at max analog gain settings - at max gain combination there will 
+				be no limits for the available BO (digital gain)
+			2: Override - The analog gain and the digital gain are overridden, i.e. the use can choose 
+				which of the analog gain combinations he wants to use (choose 1 of the 4 available 
+				combinations) and the user can set the digital gain (digital BO as required)
+Remarks			Option 2 is supported starting from FW 8.9.0.0.20 and calibrator version 0.80
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		analog_gain_control_id	
+Options			0-4	
+Description		Analog settings index	
+Remarks			For debug purpose only: This indicator is used to indicate the user's chosen analog gain
+----------------------------------------------------------------------------------------------------------------------
+Parameter 		post_dpd_gain	
+Options			Not Supported	
+Description		Not Supported	
+Remarks			Default 0
+----------------------------------------------------------------------------------------------------------------------
+
+**** Note: There are no default values.
+
+Examples
+
+One example that matches the 'tune_channel' example above is:
+
+ calibrator wlan0 wl18xx_plt set_tx_power 16125 0 0 1 0 0 0 0 0 0 0 0
+
+======================================================================================================================
+
+TX Continuous Test
+------------------
+Purpose
+	The purpose of the TX Continuous test to perform continuous transmission to evaluate the WLAN transmission quality.
+
+Method
+	TX Continuous test sends packets of data to the air, where the data packets parameters are controlled by the PLT 
+	command and include parameters such as transmitted rate, transmitted power, destination MAC address, etc...
+Syntax
+		calibrator wlan0 wl18xx_plt start_tx <delay> <rate> <size> <mode> <data_type> <gi> <options1>
+				<options2> <source MAC> <dest MAC> <channel_width>
+
+Where
+	<delay> 	Delay between packets in microseconds
+	<rate> 		Tx rate, supported rates are given in table below
+	<size> 		Size of data field in MPDU (in bytes, up to FW 8.9.0.0.19 and Calibrator 0.79: 0-2000, 
+				from FW 8.9.0.0.20 and Calibrator 0.80: 0-4065)
+	<mode> 		Number of packets (0 - endless)
+	<data_type> 	Not Supported -  default 0
+	<gi> 		Guard interval
+				0 – long
+				1 - short
+	<options1> 	Unused Field   - default 0
+	<options2> 	Supported options according to bitmap:  
+				Bit 1: Override CCA (FW 8.9.0.0.2: 0-Don't override, 1-Override)
+				Bit 2: Fixed/Incremental Sequence Number (FW 8.9.0.0.20: 0-Incremental, 1-Fixed)
+	<source MAC> 	Source MAC address (xx:xx:xx:xx:xx:xx)
+	<dest MAC> 	Destination MAC address (xx:xx:xx:xx:xx:xx)
+	<channel width> Channel width
+				0 – 20 MHz
+				1 – 40 MHz
+	
+<rate> transmission rate:
+
+--------------------------------------------------------------------------------------
+    11b	             11g	     11n	             MIMO / 40M
+--------------------------------------------------------------------------------------
+ 0 = 1.0 Mbps	 4 = 6.0 Mbps	 12 = 6.5 Mbps (MCS0)	 20 = MCS8 / MCS4 at 40MHz
+ 1 = 2.0 Mbps	 5 = 9.0 Mbps	 13 = 13.0 Mbps (MCS1)	 21 = MCS9 / MCS5 at 40MHz
+ 2 = 5.0 Mbps	 6 = 12.0 Mbps	 14 = 19.5 Mbps (MCS2)	 22 = MCS10 / MCS6 at 40MHz
+ 3 = 11.0 Mbps	 7 = 18.0 Mbps	 15 = 26.0 Mbps (MCS3)	 23 = MCS11 / MCS7 at 40MHz
+ 		 8 = 24.0 Mbps	 16 = 39.0 Mbps (MCS4)	 24 = MCS12 / MCS7,40MHz SGI
+ 		 9 = 36.0 Mbps	 17 = 52.0 Mbps (MCS5)	 25 = MCS13
+ 		 10 = 48.0 Mbps	 18 = 58.5 Mbps (MCS6)	 26 = MCS14
+ 		11 = 54.0 Mbps	 19 = 65.0 Mbps (MCS7)	 27 = MCS15
+---------------------------------------------------------------------------------------
+
+Examples
+
+The following is an example on how to use the start_tx command (and other commands) to generate packets.
+
+To set the system in PLT mode, use the power_mode command. This command also loads the PLT firmware if not previously loaded.
+
+The next step is to define channel, band, and bandwidth using the tune_channel command & set the desired TX_power.
+
+Use the start_tx command to generate packets. It is important that each start_tx command is followed by the tx_stop command, 
+which stops the transmission. Finally, use the power_mode command to reset the system to operational mode.
+
+
+**** Note: Correct antenna setting are taken from loaded FW with INI settings. assure settings with:
+
+cd /lib/firmware/ti-connectivity/
+wlconf -i /lib/firmware/ti-connectivity/wl18xx-conf.bin --get      // list all system parameters 
+If needed set the correct num of Ant (example for 2x2.4G(MIMO), 1x5G):
+wlconf -i /lib/firmware/ti-connectivity/wl18xx-conf.bin --set wl18xx.phy.number_of_assembled_ant2_4=0x02         // Set 2 Ant for MIMO
+wlconf -i /lib/firmware/ti-connectivity/wl18xx-conf.bin --set wl18xx.phy.number_of_assembled_ant5=0x01            // Set 1 Ant for 5G
+
+
+
+(0) 11B
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 1
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 0 0 0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 500 3 500 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+(1) 20MHz
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 1
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 0  0  0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 400 19 3000 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+(2) 20MHz Primary Upper
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 2
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 1  0  0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 400 19 3000 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+(3) 20MHz Primary Lower
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 3
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 -1  0  0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 400 19 3000 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+(4) 40MHz Primary Upper
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 2
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 1  0  0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 300 19 4000 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 1
+(5) 40MHz Primary Lower
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel  7 0 3
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 -1  0  0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 300 19 4000 0 0 1 0 0 00:11:22:33:44:55 01:02:03:04:05:06 1
+
+20MHz MIMO
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel 7 0 1
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 0 7 0 0 0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 300 27 4065 0 0 0 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+
+5GHz TX:
+20MHz
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel 36 1 1
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 1 36 0 0 0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 400 19 3000 0 0 0 0 0 00:11:22:33:44:55 01:02:03:04:05:06 0
+
+40MHz Upper Primary
+	calibrator wlan0 wl18xx_plt stop_tx
+	calibrator wlan0 wl18xx_plt tune_channel 36 1 2
+	calibrator wlan0 wl18xx_plt set_tx_power 20000 0 1 36 1 0 0 1 0 0 0 0
+	calibrator wlan0 wl18xx_plt start_tx 400 19 3000 0 0 0 0 0 00:11:22:33:44:55 01:02:03:04:05:06 1
+
+=================================================================================================================================
+
+TX Tone Test
+-------------
+
+Purpose
+	The purpose of the tx_tone command is to create and transmit a carrier wave that can be modulated with a fixed audio tone.
+
+Method
+	The tx_tone command can be called using the following format:
+
+		 calibrator wlan0 wl18xx_plt tx_tone_start <mode> <bin index> <antenna mode> <gain index> 
+
+The tx_tone command can be stopped using the following format:
+
+		 calibrator wlan0 wl18xx_plt tx_tone_stop 
+Where:
+---------------------------------------------------------------------------
+<mode> 			Possible values 
+				0 - transmit silence 
+				1 - transmit carrier feedthrough 
+				2 - transmit single tone 
+<bin index> 		Possible values from -32 to +32 in OFDM bins 
+<antenna mode>		Possible values
+				0 - automatic antenna selection
+				1. use TX chain 1 
+				2. use TX chain 2 
+<gain index>		Possible values 
+				2.4GHz 	- 0-4 
+				5GHz	- 0-1
+-----------------------------------------------------------------------------				
+
+Note:
+-----
+
+	1. Silence – TX chain is ON and operational but no signal is transmitted.
+	2. Carrier Feed Through – TX chain is ON and operational and the LO leakage is transmitted.
+	3. Single Tone – TX chain is ON and operational and a sinusoidal signal is transmitted with 
+		the following configuration options:
+    			a. Analog Gain Step
+    			b. Offset from carrier frequency (in OFDM bins)
+Examples
+---------
+
+The following examples show how to use the tone test:
+
+// 2.4GHz Transmit Silence
+calibrator wlan0 plt power_mode on
+calibrator wlan0 wl18xx_plt tune_channel 6 0 0
+calibrator wlan0 wl18xx_plt tx_tone_start 0 0 0 0
+calibrator wlan0 wl18xx_plt tx_tone_stop
+
+// 2.4GHz Transmit Carrier Feed Through
+calibrator wlan0 plt power_mode on
+calibrator wlan0 wl18xx_plt tune_channel 6 0 0
+calibrator wlan0 wl18xx_plt tx_tone_start 1 0 0 0
+calibrator wlan0 wl18xx_plt tx_tone_stop
+
+// 2.4GHz Transmit Single Tone
+calibrator wlan0 plt power_mode on
+calibrator wlan0 wl18xx_plt tune_channel 6 0 0
+calibrator wlan0 wl18xx_plt tx_tone_start 2 0 0 0
+calibrator wlan0 wl18xx_plt tx_tone_stop
+
+// 2.4GHz Transmit Single Tone with -5MHz offset from the LO
+calibrator wlan0 plt power_mode on
+calibrator wlan0 wl18xx_plt tune_channel 6 0 0
+calibrator wlan0 wl18xx_plt tx_tone_start 2 -5 0 0
+calibrator wlan0 wl18xx_plt tx_tone_stop
+
+// 2.4GHz Transmit Single Tone with -5MHz offset from the LO on lowest PA gain step
+calibrator wlan0 plt power_mode on
+calibrator wlan0 wl18xx_plt tune_channel 6 0 0
+calibrator wlan0 wl18xx_plt tx_tone_start 2 -5 0 4
+calibrator wlan0 wl18xx_plt tx_tone_stop
+
+=====================================================================================================================================
+Older Versions (TX Tone Command for Version R8.3)
+
+Method
+
+The tx_tone command can be called using the following format:
+
+ calibrator wlan0 wl18xx_plt tx_tone 
+
+**** Note:
+
+	The 11b/g/n patterns generated by the modem has power control (digital gain and VGA) with tx power command.
+	The WLAN CW is generated by injecting DC signal to the local oscillator (LO) input thus gain of the CW is 
+	determined by the DC level and not controlled in tx_tone command.
+	The CW tone is used only for phase noise measurement and therefore the power level control isn’t required.
+	For FCC, ETSI and other certification tests use 11b/g/n start_tx command.
+
+Examples
+--------
+	The following example set shows how to send a CW.
+
+*** Note: 
+	There is no stob_tone command (to halt the tone use start_tx or power_mode off)
+
+	calibrator wlan0 plt power_mode on
+	calibrator wlan0 wl18xx_plt tx_tone
+
+======================================================================================================================================
+
+ANT1 & ANT2 Assembly Validation for Production
+----------------------------------------------
+
+Purpose 
+	A simple, fast and cheap solution to assure both RF paths are functional. The target is to establish connection with 
+	remote AP once using SISO scheme, first on ANT1 and later on ANT2.
+
+Method
+	The procedure should be very simple:
+
+- Download the WLAN driver, change wl_conf (INI) parameter that modified the main antenna to be (ANT2 SISO, BG1)
+- Establish connection with AP using BG2 (ANT2 - MIMO)
+- Configure the platform back to the original configuration
+- Establish Connection with AP after booting using the main antenna (ANT1 SISO, BG2)
+- The following sequence will be required for the testing procedure:
+
+* Configuration changed to BG1 primary #
+ sh sta_stop.sh
+ sh unload_wlcore.sh
+ cd /usr/sbin/wlconf
+ ./wlconf -i /lib/firmware/ti-connectivity/wl18xx-conf.bin -o /lib/firmware/ti-connectivity/wl18xx-conf.bin --set wl18xx.phy.spare0=0x08
+
+* Connected to the AP with SSID = "AP_NAME" using BG1 #
+ cd /usr/share/wl18xx
+ sh load_wlcore.sh
+ sh sta_start.sh
+ sh sta_connect-ex.sh "AP_NAME"
+
+* Configuration changed back to BG2 primary #
+ sh sta_stop.sh
+ sh unload_wlcore.sh
+ cd /usr/sbin/wlconf
+ ./wlconf -i /lib/firmware/ti-connectivity/wl18xx-conf.bin -o /lib/firmware/ti-connectivity/wl18xx-conf.bin --set wl18xx.phy.spare0=0x00
+
+Re-connect to AP with default SISO on ANT1.
+
+=======================================================================================================================================
+
+----------- Old Notes ---------------------
 The calibrator and other useful utilities for TI wireless solution,
 based on the wl12xx and wl18xx drivers.
-
---- Build procedure
-
-Kernel configuration.
-Make sure your kernel is configured to support nl80211 testmode commands
-(NL80211_TESTMODE=y). Also enable following configurations:
-CRC7=m
-FW_LOADER=m
 
 In userspace there is dependent on libnl v2.x package. It can be downloaded
 from http://www.infradead.org/~tgr/libnl/files/libnl-2.0.tar.gz
